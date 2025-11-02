@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fun Surprise</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: black;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    #startButton {
+      padding: 15px 30px;
+      background: #00cc66;
+      border: none;
+      border-radius: 10px;
+      font-size: 1.2em;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    #startButton:hover {
+      background: #00aa55;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: none;
+    }
+
+    #scare {
+      display: none;
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: black;
+      justify-content: center;
+      align-items: center;
+      animation: flash 0.3s ease-in-out;
+    }
+
+    #scare img {
+      width: 100%;
+      height: auto;
+      max-height: 100vh;
+    }
+
+    @keyframes flash {
+      0% { opacity: 0; }
+      25% { opacity: 1; }
+      100% { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <button id="startButton">▶️ Start</button>
+
+  <video id="video">
+    <source src="video.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+  </video>
+
+  <audio id="music">
+    <source src="song.mp3" type="audio/mp3">
+  </audio>
+
+  <div id="scare">
+    <img src="funny-image.jpg" alt="Boo!">
+    <audio id="scareSound">
+      <source src="boo.mp3" type="audio/mp3">
+    </audio>
+  </div>
+
+  <script>
+    const startButton = document.getElementById("startButton");
+    const video = document.getElementById("video");
+    const music = document.getElementById("music");
+    const scare = document.getElementById("scare");
+    const scareSound = document.getElementById("scareSound");
+
+    startButton.addEventListener("click", () => {
+      startButton.style.display = "none";
+      video.style.display = "block";
+      video.play();
+      music.play();
+
+      // After 24 seconds: stop video/music, show surprise
+      setTimeout(() => {
+        video.pause();
+        music.pause();
+        video.style.display = "none";
+        scare.style.display = "flex";
+        scareSound.play().catch(err => console.log("Scare sound blocked:", err));
+      }, 24000);
+    });
+  </script>
+</body>
+</html>
