@@ -1,67 +1,65 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Fun Surprise</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fun Surprise — Fullscreen Attempt</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html,body { height:100%; }
     body {
-      background: black;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-      position: relative;
-      color: white;
-      font-family: Arial, sans-serif;
+      background:#000;
+      color:#fff;
+      font-family:Arial, sans-serif;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      overflow:hidden;
+      position:relative;
     }
 
     #startButton {
-      padding: 15px 30px;
-      background: #00cc66;
-      border: none;
-      border-radius: 10px;
-      font-size: 1.2em;
-      cursor: pointer;
-      transition: 0.3s;
+      padding:14px 28px;
+      background:#00cc66;
+      border:none;
+      border-radius:10px;
+      font-size:1.2rem;
+      cursor:pointer;
+      transition:background .2s;
     }
-    #startButton:hover {
-      background: #00aa55;
-    }
+    #startButton:hover { background:#00aa55; }
 
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: none;
-    }
+    video { width:100%; height:100%; object-fit:cover; display:none; }
 
-    #scare {
-      display: none;
+    #scare { display:none; position:absolute; inset:0; background:#000; justify-content:center; align-items:center; animation:flash .3s ease-in-out; }
+    #scare img { max-width:100%; max-height:100vh; }
+
+    @keyframes flash { 0%{opacity:0} 25%{opacity:1} 100%{opacity:1} }
+
+    /* overlay shown when fullscreen is lost */
+    #fsLostOverlay {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: black;
+      inset: 0;
+      display: none;
+      background: rgba(0,0,0,0.85);
+      color: white;
       justify-content: center;
       align-items: center;
-      animation: flash 0.3s ease-in-out;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 9999;
+      text-align:center;
+      padding: 24px;
     }
-
-    #scare img {
-      width: 100%;
-      height: auto;
-      max-height: 100vh;
+    #fsLostOverlay button {
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      background: #ff6b6b;
+      cursor: pointer;
+      font-size: 1rem;
     }
-
-    @keyframes flash {
-      0% { opacity: 0; }
-      25% { opacity: 1; }
-      100% { opacity: 1; }
-    }
+    #fsStatus { font-size: 0.95rem; opacity:0.9; }
   </style>
 </head>
 <body>
@@ -77,10 +75,18 @@
   </audio>
 
   <div id="scare">
-    <img src="funny-image.jpg" alt="Boo!">
+    <img src="funny-image.jpg" alt="Surprise!">
     <audio id="scareSound">
       <source src="boo.mp3" type="audio/mp3">
     </audio>
+  </div>
+
+  <div id="fsLostOverlay">
+    <div id="fsStatus">You left fullscreen. Click the button to re-enter for the full experience.</div>
+    <button id="reenterBtn">Re-enter Fullscreen</button>
+    <div style="font-size:0.9rem; opacity:0.8; margin-top:8px;">
+      Tip: In locked kiosk installs you can avoid this by running the browser in kiosk mode or packaging as an app.
+    </div>
   </div>
 
   <script>
@@ -89,22 +95,184 @@
     const music = document.getElementById("music");
     const scare = document.getElementById("scare");
     const scareSound = document.getElementById("scareSound");
+    const fsLostOverlay = document.getElementById("fsLostOverlay");
+    const reenterBtn = document.getElementById("reenterBtn");
 
-    startButton.addEventListener("click", () => {
-      startButton.style.display = "none";
-      video.style.display = "block";
-      video.play();
-      music.play();
+    // Utility: attempt to lock keyboard (best-effort)
+    async function tryKeyboardLock() {
+      if ('keyboard' in navigator && typeof navigator.keyboard.lock === 'function') {
+        try {
+          // Attempt to lock Escape key so accidental Esc won't be delivered to the page
+          // Note: browsers may restrict which keys you can lock and require focus & user gesture
+          await navigator.keyboard.lock(['Escape']);
+          console.log('Keyboard lock acquired (Escape).');
+        } catch (err) {
+          console.warn('Keyboard lock failed or not allowed:', err);
+        }
+      } else {
+        console.log('Keyboard Lock API not available in this browser.');
+      }
+    }
 
-      // After 24 seconds: stop video/music, show surprise
-      setTimeout(() => {
-        video.pause();
-        music.pause();
-        video.style.display = "none";
-        scare.style.display = "flex";
-        scareSound.play().catch(err => console.log("Scare sound blocked:", err));
-      }, 24000);
+    // Utility: attempt pointer lock (captures mouse)
+    function tryPointerLock() {
+      const el = document.documentElement;
+      if (el.requestPointerLock) {
+        try {
+          el.requestPointerLock();
+          console.log('Requested pointer lock.');
+        } catch (err) {
+          console.warn('Pointer lock request failed:', err);
+        }
+      } else {
+        console.log('Pointer Lock API not available.');
+      }
+    }
+
+    // Enter fullscreen; returns a promise
+    async function enterFullscreen() {
+      const el = document.documentElement;
+      if (el.requestFullscreen) {
+        return el.requestFullscreen();
+      } else if (el.webkitRequestFullscreen) { // Safari older
+        return el.webkitRequestFullscreen();
+      } else {
+        return Promise.reject(new Error('Fullscreen API not supported.'));
+      }
+    }
+
+    // Called when the Start button is clicked (user gesture)
+    startButton.addEventListener('click', async () => {
+      startButton.style.display = 'none';
+      video.style.display = 'block';
+
+      // Play media (user gesture allows autoplay)
+      const playPromises = [];
+      try { playPromises.push(video.play()); } catch(e){ console.warn('video play failed', e); }
+      try { playPromises.push(music.play()); } catch(e){ console.warn('music play failed', e); }
+
+      // Request fullscreen (must be from user gesture)
+      try {
+        await enterFullscreen();
+        console.log('Fullscreen requested');
+      } catch (fErr) {
+        console.warn('Fullscreen request failed:', fErr);
+      }
+
+      // Try pointer lock & keyboard lock (best-effort)
+      tryPointerLock();
+      tryKeyboardLock();
+
+      // Continue playing (in case promises were returned)
+      Promise.allSettled(playPromises).then(() => {
+        // After 24s: pause and show surprise
+        setTimeout(() => {
+          video.pause();
+          music.pause();
+          video.style.display = 'none';
+          scare.style.display = 'flex';
+          // Play scare sound but ignore blocked errors
+          scareSound.play().catch(err => console.log("scare sound blocked:", err));
+        }, 24000);
+      });
+    });
+
+    // Listen for fullscreen changes
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        console.log('Fullscreen exited by user or system.');
+        // Show overlay telling user to re-enter (you cannot force re-entry).
+        fsLostOverlay.style.display = 'flex';
+      } else {
+        // In fullscreen: hide overlay
+        fsLostOverlay.style.display = 'none';
+        // Reattempt best-effort locks (pointer/keyboard) when fullscreen re-acquired
+        tryPointerLock();
+        tryKeyboardLock();
+      }
+    });
+
+    // Offer a re-enter button since many browsers block automatic re-entry
+    reenterBtn.addEventListener('click', async () => {
+      fsLostOverlay.style.display = 'none';
+      try {
+        await enterFullscreen();
+      } catch (err) {
+        console.warn('Re-enter fullscreen failed:', err);
+      }
+    });
+
+    // When pointer lock is lost, browser will fire an event — we can log it.
+    document.addEventListener('pointerlockchange', () => {
+      const lockedEl = document.pointerLockElement;
+      console.log('pointerLockchange. lockedEl=', lockedEl);
+    });
+
+    // When keyboard lock is released (no direct event) we can check on focus or other triggers.
+    // Note: some browsers release keyboard lock when focus changes or when not allowed.
+
+    // Clean up / fallbacks for older browsers (webkit prefix)
+    document.addEventListener('webkitfullscreenchange', () => {
+      if (!document.webkitFullscreenElement) {
+        fsLostOverlay.style.display = 'flex';
+      } else {
+        fsLostOverlay.style.display = 'none';
+      }
     });
   </script>
 </body>
 </html>
+ 
+    <div id="funny">
+  <img src="funny-image.jpg" alt="Surprise!" id="funnyImage">
+  <audio id="funnySound">
+    <source src="boing.mp3" type="audio/mp3">
+  </audio>
+</div>
+
+<style>
+  #funny {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: black;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+  }
+
+  #funnyImage {
+    width: 100vw;
+    height: 100vh;
+    object-fit: cover;
+    animation: jumpInFast 0.4s ease-out forwards, shake 0.1s infinite;
+  }
+
+  @keyframes jumpInFast {
+    0% { transform: scale(0.1) rotate(10deg); opacity: 0; }
+    80% { transform: scale(1.05) rotate(-5deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); }
+  }
+
+  @keyframes shake {
+    0% { transform: translate(5px, 5px) rotate(1deg); }
+    25% { transform: translate(-5px, -5px) rotate(-1deg); }
+    50% { transform: translate(5px, -5px) rotate(1deg); }
+    75% { transform: translate(-5px, 5px) rotate(-1deg); }
+    100% { transform: translate(0, 0) rotate(0); }
+  }
+</style>
+
+<script>
+  setTimeout(() => {
+    // Make sure you have defined these somewhere
+    if (typeof video !== 'undefined') video.pause();
+    if (typeof music !== 'undefined') music.pause();
+    if (typeof video !== 'undefined') video.style.display = "none";
+
+    const funny = document.getElementById("funny");
+    const funnySound = document.getElementById("funnySound");
+    funny.style.display = "flex";
+    funnySound.play().catch(err => console.log("sound blocked:", err));
+  }, 24000);
+</script>
